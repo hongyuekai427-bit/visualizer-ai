@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spectrolizer</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#050508">
+    <link rel="icon" href="./icon-192.png" type="image/png">
+    <style>
+        /* ==========================================================================
+        1. CORE DESIGN SYSTEM & BASE STYLES
+        ========================================================================== */
+        :root {
+            --bg-deep: #050508;
+            --bg-surface: rgba(15, 15, 20, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            --accent-cyan: #00dfd8;
+            --accent-purple: #7928ca;
+            --accent-red: #ff003c;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.5);
+            --font-stack: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            
+            /* Premium iOS/macOS Spring Animations */
+            --spring-ios: cubic-bezier(0.32, 0.72, 0, 1);
+            --spring-bounce: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: var(--font-stack);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            min-height: 100vh;
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.6s var(--spring-ios);
+        }
+
+        body.expanded {
+            background-color: #020203;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-cyan);
+        }
+
+        /* ==========================================================================
+        2. FULLSCREEN CANVAS VISUALIZER & AMBIENT BACKDROP
+        ========================================================================== */
+        #visualizer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .backdrop-orbs {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 40%, #0f0c1a 0%, var(--bg-deep) 70%);
+            transition: opacity 0.6s var(--spring-ios);
+        }
+
+        body.expanded .backdrop-orbs {
+            opacity: 0.6;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.12;
+            will-change: transform;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: var(--accent-purple);
+            top: -10%;
+            left: -10%;
+            animation: float-1 25s ease-in-out infinite alternate;
+        }
+
+        .orb-2 {
+            width: 500px;
+            height: 500px;
+            background: var(--accent-cyan);
+            bottom: -10%;
+            right: -10%;
+            animation: float-2 30s ease-in-out infinite alternate;
+        }
+
+        @keyframes float-1 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(60px, 40px) scale(1.1); }
+        }
+        @keyframes float-2 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-50px, -30px) scale(1.05); }
+        }
+
+        /* ==========================================================================
+        3. PREMIUM MORPHING PANEL CONTAINER
+        ========================================================================== */
+        #app-panel {
+            position: fixed;
+            z-index: 10;
+            background: var(--bg-surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), var(--glass-highlight);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-sizing: border-box;
+            will-change: width, max-width, top, left, transform, border-radius, padding, filter;
+            transition: all 0.6s var(--spring-ios), opacity 0.5s ease;
+        }
+
+        body:not(.expanded) #app-panel {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 380px;
+            max-width: 92vw;
+            border-radius: 24px;
+            padding: 24px;
+        }
+
+        body.expanded #app-panel {
+            top: auto;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 95%;
+            max-width: 1200px;
+            border-radius: 24px;
+            padding: 20px 32px;
+            background: rgba(10, 10, 14, 0.8);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes panel-motion-blur {
+            0% { filter: blur(0px); opacity: 1; }
+            50% { filter: blur(8px); opacity: 0.8; }
+            100% { filter: blur(0px); opacity: 1; }
+        }
+        body.is-transitioning #app-panel {
+            animation: panel-motion-blur 0.5s var(--spring-ios) forwards;
+        }
+
+        /* ==========================================================================
+        4. PANEL HEADER & TRACK INFO
+        ========================================================================== */
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .brand-info {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .brand-badge-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .brand-badge {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .live-badge {
+            display: none;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #fff;
+            background: var(--accent-red);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(255, 0, 60, 0.4);
+            animation: pulse-red 1.5s infinite;
+        }
+
+        body.live-mode .live-badge {
+            display: block;
+        }
+
+        .track-title {
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-main);
+            letter-spacing: -0.2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* ==========================================================================
+        5. ALBUM ARTWORK & RECORDING OVERLAY
+        ========================================================================== */
+        .album-art-section {
+            width: 100%;
+            max-height: 380px;
+            opacity: 1;
+            overflow: hidden;
+            position: relative;
+            transition: max-height 0.6s var(--spring-ios), opacity 0.4s ease, margin 0.6s var(--spring-ios);
+        }
+
+        body.expanded .album-art-section {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        .album-art-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+            border: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.4s var(--spring-bounce);
+        }
+
+        .album-art-wrapper:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            transform: scale(1.02);
+        }
+
+        .album-art-wrapper:active {
+            transform: scale(0.98);
+        }
+
+        .album-art-wrapper.is-loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .media-placeholder-icon {
+            width: 64px;
+            height: 64px;
+            color: rgba(255,255,255,0.15);
+            transition: all 0.4s var(--spring-bounce);
+        }
+
+        .album-art-wrapper:hover .media-placeholder-icon {
+            color: var(--accent-cyan);
+            transform: scale(1.05);
+        }
+
+        .album-art-wrapper.playing {
+            border-color: rgba(0, 223, 216, 0.3);
+            box-shadow: 0 0 30px rgba(0, 223, 216, 0.08);
+        }
+
+        .album-art-wrapper.playing .media-placeholder-icon {
+            color: var(--accent-cyan);
+            animation: pulse-slow 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+
+        .upload-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            background: rgba(5, 5, 8, 0.6);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            transition: all 0.3s var(--spring-ios);
+            color: var(--text-main);
+        }
+
+        .album-art-wrapper:hover .upload-overlay {
+            opacity: 1;
+        }
+
+        .upload-overlay svg {
+            width: 32px;
+            height: 32px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+        }
+
+        .upload-overlay span {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .rec-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 5, 8, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            border-radius: 16px;
+        }
+
+        body.is-recording .rec-overlay {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .rec-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            box-shadow: 0 0 20px rgba(255, 0, 60, 0.6);
+            animation: pulse-red 1.5s infinite;
+            margin-bottom: 16px;
+        }
+
+        .rec-time {
+            font-size: 32px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 2px;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        .rec-stop-btn {
+            padding: 10px 24px;
+            background: rgba(255, 0, 60, 0.15);
+            border: 1px solid rgba(255, 0, 60, 0.4);
+            color: #ff416c;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.2s var(--spring-bounce);
+        }
+
+        .rec-stop-btn:hover {
+            background: rgba(255, 0, 60, 0.3);
+            border-color: #ff416c;
+            box-shadow: 0 0 20px rgba(255, 0, 60, 0.3);
+        }
+        
+        .rec-stop-btn:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 0, 60, 0.4); }
+            50% { transform: scale(1.1); box-shadow: 0 0 25px rgba(255, 0, 60, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 0, 60, 0.4); }
+        }
+
+        /* ==========================================================================
+        6. UI CONTROLS & TIMELINE
+        ========================================================================== */
+        .timeline-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .time-display {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            min-width: 58px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-wrapper {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            cursor: pointer;
+            transition: height 0.2s var(--spring-ios);
+        }
+
+        input[type="range"]:hover {
+            height: 6px;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(to right, var(--accent-cyan) var(--progress, 0%), rgba(255, 255, 255, 0.1) var(--progress, 0%));
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 8px rgba(0, 223, 216, 0.4);
+            margin-top: -4px;
+            transition: transform 0.3s var(--spring-bounce), box-shadow 0.2s ease, opacity 0.2s ease;
+            opacity: 0;
+        }
+
+        input[type="range"]:hover::-webkit-slider-thumb,
+        input[type="range"]:focus::-webkit-slider-thumb {
+            transform: scale(1.5);
+            opacity: 1;
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.6);
+        }
+
+        /* ==========================================================================
+        7. BUTTONS & HARDWARE CONTROL ROW
+        ========================================================================== */
+        .playback-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .main-controls-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            color: var(--text-main);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s var(--spring-bounce);
+            backdrop-filter: blur(10px);
+            flex-shrink: 0;
+            box-shadow: var(--glass-highlight);
+        }
+
+        .glass-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px) scale(1.05);
+            color: var(--accent-cyan);
+        }
+
+        .glass-btn:active {
+            transform: translateY(0) scale(0.92);
+        }
+
+        .glass-btn.active {
+            color: var(--accent-cyan);
+            border-color: rgba(0, 223, 216, 0.4);
+            background: rgba(0, 223, 216, 0.1);
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.15), var(--glass-highlight);
+        }
+
+        .btn-xs { width: 28px; height: 28px; }
+        .btn-small { width: 36px; height: 36px; }
+        .btn-medium { width: 44px; height: 44px; }
+        .btn-large { width: 56px; height: 56px; background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05)); border-color: rgba(255, 255, 255, 0.2); }
+
+        .glass-btn svg {
+            width: 45%;
+            height: 45%;
+            fill: currentColor;
+            transition: transform 0.3s var(--spring-bounce);
+        }
+        
+        .glass-btn:active svg {
+            transform: scale(0.9);
+        }
+
+        .icon-btn {
+            border-radius: 10px;
+            padding: 0 12px;
+            width: auto;
+            height: 34px;
+            font-size: 12px;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100px;
+        }
+
+        /* ==========================================================================
+        8. LIVE IO ROW
+        ========================================================================== */
+        .live-io-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 4px;
+            padding-top: 12px;
+            border-top: 1px solid var(--glass-border);
+            width: 100%;
+        }
+
+        .io-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 8px 14px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s var(--spring-bounce);
+        }
+
+        .io-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: var(--text-main);
+            transform: translateY(-1px);
+        }
+        
+        .io-btn:active {
+            transform: scale(0.96) translateY(0);
+        }
+
+        .io-btn.active {
+            background: rgba(0, 223, 216, 0.12);
+            border-color: rgba(0, 223, 216, 0.4);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.15);
+        }
+
+        .io-btn.rec-btn.active {
+            background: rgba(255, 0, 60, 0.12);
+            border-color: rgba(255, 0, 60, 0.4);
+            color: #ff416c;
+            box-shadow: 0 0 12px rgba(255, 0, 60, 0.15);
+        }
+
+        .io-divider {
+            width: 1px;
+            height: 16px;
+            background: var(--glass-border);
+            margin: 0 4px;
+        }
+
+        /* ==========================================================================
+        9. DRAWERS & MODALS
+        ========================================================================== */
+        .premium-drawer {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: 360px;
+            max-width: 85vw;
+            background: rgba(10, 10, 14, 0.85);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border-right: 1px solid var(--glass-border);
+            z-index: 100;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transform: translateX(-100%);
+            opacity: 0;
+            visibility: hidden;
+            transition: transform 0.5s var(--spring-ios), opacity 0.4s ease, visibility 0.5s;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .premium-drawer.open {
+            transform: translateX(0);
+            opacity: 1;
+            visibility: visible;
+            box-shadow: 20px 0 60px rgba(0,0,0,0.5);
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .drawer-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: -0.2px;
+        }
+
+        /* Settings Modal */
+        .settings-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -40%) scale(0.95);
+            opacity: 0;
+            pointer-events: none;
+            background: rgba(12, 12, 16, 0.85);
+            backdrop-filter: blur(32px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            z-index: 150;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), var(--glass-highlight);
+            transition: all 0.4s var(--spring-bounce);
+            display: flex;
+            flex-direction: column;
+            width: 90%;
+            max-width: 480px;
+            max-height: 80vh;
+            overflow: hidden;
+        }
+
+        .settings-modal.open {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .settings-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .settings-modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.2px;
+        }
+
+        .settings-modal-content {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .settings-tabs {
+            display: flex;
+            gap: 8px;
+            background: rgba(255,255,255,0.03);
+            padding: 4px;
+            border-radius: 10px;
+        }
+
+        .settings-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s var(--spring-bounce);
+        }
+
+        .settings-tab:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .settings-tab.active {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transform: scale(1.02);
+        }
+
+        .settings-tab-panel {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .settings-tab-panel.active {
+            display: flex;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.8px;
+        }
+
+        .setting-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        select.premium-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            padding: 10px 14px;
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.2s var(--spring-ios);
+            appearance: none;
+            box-shadow: var(--glass-highlight);
+        }
+
+        select.premium-select:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        select.premium-select option {
+            background: #0f0f14;
+            color: var(--text-main);
+        }
+
+        /* Visualizer Mode Cards */
+        .visualizer-modes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .mode-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.4s var(--spring-bounce);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mode-card:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .mode-card:active {
+            transform: scale(0.96) translateY(0);
+        }
+
+        .mode-card.active {
+            background: rgba(0, 223, 216, 0.08);
+            border-color: rgba(0, 223, 216, 0.4);
+            box-shadow: 0 0 15px rgba(0, 223, 216, 0.1);
+            transform: scale(1.03);
+        }
+
+        .mode-preview {
+            width: 100%;
+            height: 40px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .mode-preview.bars-preview::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60%;
+            background: repeating-linear-gradient(90deg, rgba(0,223,216,0.6) 0px, rgba(0,223,216,0.6) 3px, transparent 3px, transparent 7px);
+        }
+
+        .mode-preview.mirrored-preview::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 40%;
+            transform: translateY(-50%);
+            background: repeating-linear-gradient(90deg, rgba(121,40,202,0.6) 0px, rgba(121,40,202,0.6) 3px, transparent 3px, transparent 7px);
+        }
+
+        .mode-preview.radial-preview::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 60%;
+            height: 60%;
+            transform: translate(-50%, -50%);
+            border: 2px dashed rgba(255,0,127,0.5);
+            border-radius: 50%;
+        }
+
+        .mode-preview.wave-preview::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0,223,216,0.8), transparent);
+            box-shadow: 0 0 8px rgba(0,223,216,0.5);
+        }
+
+        .mode-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .mode-card.active .mode-label {
+            color: var(--accent-cyan);
+        }
+
+        /* Toggles */
+        .ui-effect-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .ui-effect-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .ui-effect-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .ui-effect-desc {
+            font-size: 11px;
+            line-height: 1.4;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .ui-effect-toggle {
+            position: relative;
+            width: 42px;
+            height: 24px;
+            flex: 0 0 auto;
+        }
+
+        .ui-effect-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .ui-effect-toggle-track {
+            position: absolute;
+            inset: 0;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: all 0.3s var(--spring-ios);
+        }
+
+        .ui-effect-toggle-track::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 3px;
+            left: 3px;
+            border-radius: 50%;
+            background: #fff;
+            transition: all 0.3s var(--spring-bounce);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .ui-effect-toggle input:checked + .ui-effect-toggle-track {
+            background: rgba(0, 223, 216, 0.2);
+            border-color: rgba(0, 223, 216, 0.5);
+        }
+
+        .ui-effect-toggle input:checked + .ui-effect-toggle-track::after {
+            transform: translateX(18px);
+            background: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 223, 216, 0.5);
+        }
+
+        /* Horizontal settings sliders (Smoothing / Bass Boost / Glow) */
+        .settings-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            margin: 10px 0;
+            border-radius: 2px;
+            background: linear-gradient(to right, var(--accent-cyan) var(--progress, 0%), rgba(255,255,255,0.1) var(--progress, 0%));
+            outline: none;
+            cursor: pointer;
+        }
+
+        .settings-range::-webkit-slider-runnable-track {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(to right, var(--accent-cyan) var(--progress, 0%), rgba(255,255,255,0.1) var(--progress, 0%));
+        }
+
+        .settings-range::-moz-range-track {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .settings-range::-moz-range-progress {
+            height: 4px;
+            border-radius: 2px;
+            background: var(--accent-cyan);
+        }
+
+        .settings-range::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border: none;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 8px rgba(0,223,216,0.4);
+            opacity: 0;
+        }
+
+        .settings-range:hover::-moz-range-thumb,
+        .settings-range:active::-moz-range-thumb {
+            opacity: 1;
+        }
+
+        .settings-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            margin-top: -4px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 8px rgba(0,223,216,0.4);
+            opacity: 0;
+        }
+
+        .settings-range:hover::-webkit-slider-thumb,
+        .settings-range:active::-webkit-slider-thumb {
+            opacity: 1;
+        }
+
+        /* ==========================================================================
+        10. EQ RACK
+        ========================================================================== */
+        .eq-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -40%) scale(0.95);
+            opacity: 0;
+            pointer-events: none;
+            background: rgba(12, 12, 16, 0.85);
+            backdrop-filter: blur(32px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            z-index: 150;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), var(--glass-highlight);
+            transition: all 0.4s var(--spring-bounce);
+            display: flex;
+            flex-direction: column;
+            width: 90%;
+            max-width: 420px;
+            overflow: visible;
+        }
+
+        .eq-modal.open {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .eq-presets {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .eq-preset-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.3s var(--spring-bounce);
+        }
+
+        .eq-preset-pill:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            transform: translateY(-1px);
+        }
+        
+        .eq-preset-pill:active {
+            transform: scale(0.95);
+        }
+
+        .eq-preset-pill.active {
+            background: rgba(0, 223, 216, 0.15);
+            color: var(--accent-cyan);
+            border-color: rgba(0, 223, 216, 0.4);
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.15);
+            transform: scale(1.05);
+        }
+
+        /* EQ Sliders Container */
+        .eq-sliders-container {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            height: 300px;
+            align-items: center;
+            margin-top: 20px;
+            position: relative;
+        }
+
+        /* EQ Band Layout */
+        .eq-band {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            height: 100%;
+            width: 48px;
+            position: relative;
+        }
+
+        /* Vertical Track Line (decorative) */
+        .eq-band::before {
+            content: '';
+            position: absolute;
+            top: 50px;
+            bottom: 30px;
+            left: 50%;
+            width: 2px;
+            background: rgb(255, 255, 255, 0.00);
+            transform: translateX(-50%);
+            border-radius: 1px;
+            z-index: 0;
+        }
+
+        /* THE SLIDER - NO ROTATION NEEDED */
+        .eq-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px !important;
+            height: 220px !important;
+            background: linear-gradient(to top, var(--accent-cyan) var(--progress, 0%), rgba(255, 255, 255, 0.1) var(--progress, 0%)) center / 4px 100% no-repeat !important;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            margin: 0;
+            writing-mode: vertical-lr;
+            direction: rtl;
+            transition: box-shadow 0.2s ease;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Prevent the global horizontal range track from drawing on vertical EQ sliders */
+        .eq-slider::-webkit-slider-runnable-track {
+            width: 4px !important;
+            height: 100% !important;
+            background: transparent !important;
+            border: none;
+        }
+        .eq-slider::-moz-range-track {
+            width: 4px;
+            height: 100%;
+            background: transparent;
+            border: none;
+        }
+        .eq-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--accent-cyan);
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.4);
+            opacity: 0;
+            cursor: pointer;
+        }
+        .eq-slider:hover::-moz-range-thumb,
+        .eq-slider:active::-moz-range-thumb {
+            opacity: 1;
+        }
+        .eq-slider::-moz-range-progress {
+            width: 4px;
+            background: var(--accent-cyan);
+            border: none;
+        }
+
+        /* Slider Thumb */
+        .eq-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            opacity: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--accent-cyan);
+            box-shadow: 0 0 12px rgba(0, 223, 216, 0.4);
+            cursor: pointer;
+            transition: transform 0.3s var(--spring-bounce), box-shadow 0.2s ease;
+        }
+
+        .eq-slider:hover::-webkit-slider-thumb,
+        .eq-slider:active::-webkit-slider-thumb {
+            opacity: 1;
+            transform: scale(1.2);
+            box-shadow: 0 0 18px rgba(0, 223, 216, 0.6);
+        }
+
+        .eq-slider::-webkit-slider-thumb:active {
+            opacity: 1;
+            transform: scale(0.9);
+        }
+
+        /* Labels */
+        .eq-band span {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            z-index: 1;
+        }
+
+        .eq-band .eq-value {
+            font-size: 11px;
+            color: var(--accent-cyan);
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            z-index: 1;
+        }
+
+        /* ==========================================================================
+        11. QUEUE PLAYLIST
+        ========================================================================== */
+        .queue-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .queue-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .queue-empty-state p {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .queue-empty-state span {
+            font-size: 12px;
+        }
+
+        @keyframes queue-item-enter {
+            from { opacity: 0; transform: translateY(12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .queue-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid transparent;
+            border-radius: 10px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: grab;
+            transition: all 0.3s var(--spring-bounce);
+            animation: queue-item-enter 0.4s var(--spring-ios) forwards;
+        }
+
+        .queue-item:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.12);
+            transform: translateX(4px);
+        }
+        
+        .queue-item:active {
+            cursor: grabbing;
+            transform: scale(0.98);
+        }
+
+        .queue-item.active {
+            background: rgba(0, 223, 216, 0.06);
+            border-left-color: var(--accent-cyan);
+            border-color: rgba(0, 223, 216, 0.2);
+        }
+
+        .queue-item.active .qi-name {
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        .qi-info {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .qi-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: rgba(255,255,255,0.9);
+        }
+
+        .qi-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .qi-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            transition: all 0.2s var(--spring-bounce);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qi-btn:hover {
+            color: #ff416c;
+            background: rgba(255, 65, 108, 0.1);
+            transform: scale(1.1);
+        }
+        
+        .qi-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* ==========================================================================
+        12. STATUS & TOASTS
+        ========================================================================== */
+        .status-row {
+            display: flex;
+            justify-content: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        .toast-region {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        @keyframes toast-enter {
+            from { transform: translateX(100%) scale(0.9); opacity: 0; }
+            to { transform: translateX(0) scale(1); opacity: 1; }
+        }
+        
+        @keyframes toast-exit {
+            from { transform: translateX(0) scale(1); opacity: 1; }
+            to { transform: translateX(100%) scale(0.9); opacity: 0; }
+        }
+
+        .toast {
+            background: rgba(10, 10, 14, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--accent-cyan);
+            padding: 12px 20px;
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            animation: toast-enter 0.4s var(--spring-bounce) forwards;
+            pointer-events: all;
+        }
+
+        .toast.is-leaving {
+            animation: toast-exit 0.3s var(--spring-ios) forwards;
+        }
+
+        /* ==========================================================================
+        13. RESPONSIVE & MOBILE UI
+        ========================================================================== */
+        @media (max-width: 768px) {
+            body:not(.expanded) #app-panel {
+                width: 95vw;
+                padding: 20px;
+                border-radius: 24px;
+            }
+
+            body.expanded #app-panel {
+                width: 100%;
+                max-width: 100%;
+                bottom: 0;
+                left: 0;
+                transform: none;
+                border-radius: 24px 24px 0 0;
+                padding: 16px 20px 32px 20px;
+                border-left: none;
+                border-right: none;
+                border-bottom: none;
+            }
+
+            .playback-controls-row {
+                gap: 8px;
+            }
+
+            .btn-large {
+                width: 60px;
+                height: 60px;
+            }
+
+            .premium-drawer {
+                width: 100%;
+                max-width: 100%;
+                border-radius: 24px 24px 0 0;
+                bottom: 0;
+                top: auto;
+                height: 75vh;
+                transform: translateY(100%);
+                opacity: 0;
+                border-right: none;
+                border-top: 1px solid var(--glass-border);
+                transition: transform 0.5s var(--spring-ios), opacity 0.4s ease, visibility 0.5s;
+            }
+
+            .premium-drawer.open {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            .toast-region {
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+            }
+
+            .toast {
+                width: 100%;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
+        /* iOS Icon Spring Animation Class */
+        @keyframes icon-spring {
+            0% { transform: scale(1); }
+            40% { transform: scale(0.85); }
+            100% { transform: scale(1); }
+        }
+        .icon-spring-anim {
+            animation: icon-spring 0.45s var(--spring-bounce) forwards;
+        }
+
+        /* ==========================================================================
+        14. UI BLUR & TRANSPARENCY FIXES
+        ========================================================================== */
+        /* Fix for UI Blur Toggle */
+        body.ui-blur-off #app-panel,
+        body.ui-blur-off .premium-drawer,
+        body.ui-blur-off .settings-modal,
+        body.ui-blur-off .eq-modal {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        /* Panel Transparency Toggle */
+        body.ui-transparency-on #app-panel {
+            background: rgba(10, 10, 14, 0.2) !important;
+        }
+        
+        body.ui-transparency-on .premium-drawer,
+        body.ui-transparency-on .settings-modal,
+        body.ui-transparency-on .eq-modal {
+            background: rgba(10, 10, 14, 0.3) !important;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="visualizer"></canvas>
+    
+    <div class="backdrop-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <main id="app-panel">
+        <header class="panel-header">
+            <div class="brand-info">
+                <div class="brand-badge-container">
+                    <span class="brand-badge">Spectrolizer</span>
+                    <span class="live-badge">Live</span>
+                </div>
+                <h1 id="track-title" class="track-title">No File Loaded</h1>
+            </div>
+            <div class="header-actions">
+                <button id="btn-eq" class="glass-btn btn-small" aria-label="Equalizer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                </button>
+                <button id="btn-settings" class="glass-btn btn-small" aria-label="Settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+                <button id="btn-queue" class="glass-btn btn-small" aria-label="Queue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="album-art-section">
+            <div id="album-art-btn" class="album-art-wrapper" role="button" tabindex="0" aria-label="Load Local Media">
+                <svg class="media-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                <div class="upload-overlay">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <span id="upload-label">Load Local Media</span>
+                </div>
+                <div class="rec-overlay">
+                    <div class="rec-dot"></div>
+                    <div id="rec-time-display" class="rec-time">0:00</div>
+                    <button id="btn-stop-rec" class="rec-stop-btn">Stop Recording</button>
+                </div>
+            </div>
+            <input type="file" id="file-input" accept="audio/*,video/*" multiple hidden>
+        </div>
+
+        <div class="timeline-container">
+            <span id="time-current" class="time-display">0:00</span>
+            <div class="progress-wrapper">
+                <input type="range" id="seek-bar" min="0" max="100" value="0" aria-label="Seek">
+            </div>
+            <span id="time-total" class="time-display">0:00</span>
+        </div>
+
+        <div class="playback-controls-row">
+            <div class="main-controls-group">
+                <button id="btn-shuffle" class="glass-btn btn-small" aria-label="Shuffle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                </button>
+                <button id="btn-prev" class="glass-btn btn-medium" aria-label="Previous">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"></line></svg>
+                </button>
+                <button id="btn-play" class="glass-btn btn-large" aria-label="Play/Pause">
+                    <svg id="svg-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+                <button id="btn-next" class="glass-btn btn-medium" aria-label="Next">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"></line></svg>
+                </button>
+                <button id="btn-loop" class="glass-btn btn-small" aria-label="Loop">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                </button>
+            </div>
+            
+            <div class="volume-container">
+                <button id="btn-mute" class="glass-btn btn-small" aria-label="Mute">
+                    <svg id="svg-mute-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+                <input type="range" id="volume-bar" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
+            </div>
+
+            <div class="header-actions" style="margin-left: auto;">
+                <button id="btn-toggle-view" class="glass-btn icon-btn" aria-label="Toggle View" aria-pressed="false">
+                    <svg id="svg-view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    <span id="view-btn-text">Expand</span>
+                </button>
+                <button id="btn-fullscreen" class="glass-btn icon-btn" aria-label="Fullscreen">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="live-io-row">
+            <button id="btn-mic" class="io-btn" aria-label="Microphone Input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <span>Mic</span>
+            </button>
+            <button id="btn-system-audio" class="io-btn" aria-label="System Audio Input">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>System</span>
+            </button>
+            <div class="io-divider"></div>
+            <button id="btn-record" class="io-btn rec-btn" aria-label="Record">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="6"></circle></svg>
+                <span>Rec</span>
+            </button>
+        </div>
+
+        <div class="status-row">
+            <span id="status-message">Ready — open an audio or video file</span>
+            <span class="keyboard-shortcuts">---Space: Play/Pause · ←/→: Seek 5s · ↑/↓: Volume · M: Mute · F: Fullscreen · E: View · Q: Queue---</span>
+        </div>
+    </main>
+
+    <aside class="premium-drawer" id="queue-drawer">
+        <div class="drawer-header">
+            <span class="drawer-title">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                Queue
+            </span>
+            <button id="btn-close-queue" class="glass-btn btn-small" aria-label="Close Queue">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div id="queue-list" class="queue-list"></div>
+    </aside>
+
+    <aside class="settings-modal" id="settings-drawer">
+        <div class="settings-modal-header">
+            <span class="settings-modal-title">Preferences</span>
+            <button id="btn-close-settings" class="glass-btn btn-small" aria-label="Close Settings">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="settings-modal-content">
+            <div class="settings-tabs">
+                <button id="settings-tab-general" class="settings-tab active" role="tab" aria-selected="true">General</button>
+                <button id="settings-tab-ui" class="settings-tab" role="tab" aria-selected="false">Visuals</button>
+            </div>
+            
+            <div id="settings-panel-general" class="settings-tab-panel active" role="tabpanel">
+                <div class="setting-group">
+                    <label class="setting-label">FFT Resolution</label>
+                    <select id="fft-select" class="premium-select">
+                        <option value="512">512 (Low)</option>
+                        <option value="1024">1024 (Medium)</option>
+                        <option value="2048" selected>2048 (High)</option>
+                        <option value="4096">4096 (Ultra)</option>
+                        <option value="8192">8192 (Maximum)</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Color Theme</label>
+                    <select id="theme-select" class="premium-select">
+                        <option value="neon">Neon (Default)</option>
+                        <option value="cyberpunk">Cyberpunk</option>
+                        <option value="monochrome">Monochrome</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="settings-panel-ui" class="settings-tab-panel" role="tabpanel">
+                <div class="setting-group">
+                    <label class="setting-label">Visualizer Mode</label>
+                    <div class="visualizer-modes">
+                        <button class="mode-card" data-value="bars" onclick="setVisualizerMode('bars')">
+                            <div class="mode-preview bars-preview"></div>
+                            <span class="mode-label">Frequency Bars</span>
+                        </button>
+                        <button class="mode-card" data-value="mirrored" onclick="setVisualizerMode('mirrored')">
+                            <div class="mode-preview mirrored-preview"></div>
+                            <span class="mode-label">Mirrored Spectrum</span>
+                        </button>
+                        <button class="mode-card" data-value="radial" onclick="setVisualizerMode('radial')">
+                            <div class="mode-preview radial-preview"></div>
+                            <span class="mode-label">Circular Radial</span>
+                        </button>
+                        <button class="mode-card" data-value="wave" onclick="setVisualizerMode('wave')">
+                            <div class="mode-preview wave-preview"></div>
+                            <span class="mode-label">Oscillating Wave</span>
+                        </button>
+                    </div>
+                    <select id="style-select" class="premium-select" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" aria-hidden="true">
+                        <option value="bars">Frequency Bars</option>
+                        <option value="mirrored">Mirrored Spectrum</option>
+                        <option value="radial">Circular Radial</option>
+                        <option value="wave">Oscillating Wave</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">Smoothing</label>
+                    <input type="range" id="smooth-bar" class="settings-range" min="0" max="0.99" step="0.01">
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Bass Boost</label>
+                    <input type="range" id="bass-bar" class="settings-range" min="1" max="3" step="0.05">
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Glow Strength</label>
+                    <input type="range" id="glow-bar" class="settings-range" min="0" max="50" step="1">
+                </div>
+
+                <div class="ui-effect-card">
+                    <div class="ui-effect-row">
+                        <div class="ui-effect-copy">
+                            <span class="ui-effect-title">UI Blur</span>
+                            <span class="ui-effect-desc">Apply backdrop blur to panels</span>
+                        </div>
+                        <label class="ui-effect-toggle">
+                            <input type="checkbox" id="ui-blur-toggle" checked>
+                            <span class="ui-effect-toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="ui-effect-card" id="transparency-card" style="display: none;">
+                    <div class="ui-effect-row">
+                        <div class="ui-effect-copy">
+                            <span class="ui-effect-title">Panel Transparency</span>
+                            <span class="ui-effect-desc">Increase transparency when blur is disabled</span>
+                        </div>
+                        <label class="ui-effect-toggle">
+                            <input type="checkbox" id="ui-transparency-toggle" checked>
+                            <span class="ui-effect-toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="ui-effect-card">
+                    <div class="ui-effect-row">
+                        <div class="ui-effect-copy">
+                            <span class="ui-effect-title">Motion Blur</span>
+                            <span class="ui-effect-desc">Smooth transitions between states</span>
+                        </div>
+                        <label class="ui-effect-toggle">
+                            <input type="checkbox" id="animation-blur-toggle" checked>
+                            <span class="ui-effect-toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="eq-modal" id="eq-modal">
+        <div class="settings-modal-header">
+            <span class="settings-modal-title">Equalizer</span>
+            <button id="btn-close-eq" class="glass-btn btn-small" aria-label="Close EQ">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="settings-modal-content">
+            <div class="eq-presets">
+                <button class="eq-preset-pill active" data-preset="flat">Flat</button>
+                <button class="eq-preset-pill" data-preset="electronic">Electronic</button>
+                <button class="eq-preset-pill" data-preset="acoustic">Acoustic</button>
+                <button class="eq-preset-pill" data-preset="deepbass">Deep Bass</button>
+                <button class="eq-preset-pill" data-preset="vocal">Vocal</button>
+            </div>
+            <div class="eq-sliders-container">
+                <div class="eq-band">
+                    <span>BASS</span>
+                    <input type="range" id="eq-bass" class="eq-slider" min="-15" max="15" value="0" step="1">
+                    <span class="eq-value" id="eq-bass-val">0 dB</span>
+                </div>
+                <div class="eq-band">
+                    <span>MID</span>
+                    <input type="range" id="eq-mid" class="eq-slider" min="-15" max="15" value="0" step="1">
+                    <span class="eq-value" id="eq-mid-val">0 dB</span>
+                </div>
+                <div class="eq-band">
+                    <span>TREB</span>
+                    <input type="range" id="eq-treb" class="eq-slider" min="-15" max="15" value="0" step="1">
+                    <span class="eq-value" id="eq-treb-val">0 dB</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-region" id="toast-region"></div>
+    <audio id="audio-engine" crossorigin="anonymous"></audio>
+
+    <script>
+        // Register Service Worker for Offline PWA Support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            'use strict';
+
+            const $ = (id) => document.getElementById(id);
+            const appPanel = $('app-panel');
+            const audioEngine = $('audio-engine');
+            const fileInput = $('file-input');
+            const albumArtBtn = $('album-art-btn');
+            const uploadLabel = $('upload-label');
+            const trackTitle = $('track-title');
+
+            const seekBar = $('seek-bar');
+            const timeCurrent = $('time-current');
+            const timeTotal = $('time-total');
+            const volumeBar = $('volume-bar');
+
+            const btnPlay = $('btn-play'), svgPlayIcon = $('svg-play-icon');
+            const btnPrev = $('btn-prev'), btnNext = $('btn-next');
+            const btnLoop = $('btn-loop'), btnShuffle = $('btn-shuffle');
+            const btnMute = $('btn-mute'), svgMuteIcon = $('svg-mute-icon');
+            const btnToggleView = $('btn-toggle-view'), viewBtnText = $('view-btn-text'), svgViewIcon = $('svg-view-icon');
+            const btnFullscreen = $('btn-fullscreen');
+
+            const settingsDrawer = $('settings-drawer'), btnSettings = $('btn-settings'), btnCloseSettings = $('btn-close-settings');
+            const queueDrawer = $('queue-drawer'), btnQueue = $('btn-queue'), btnCloseQueue = $('btn-close-queue'), queueList = $('queue-list');
+            const eqModal = $('eq-modal'), btnEq = $('btn-eq'), btnCloseEq = $('btn-close-eq');
+            const btnSystemAudio = $('btn-system-audio'), btnMic = $('btn-mic'), btnRecord = $('btn-record'), btnStopRec = $('btn-stop-rec'), recTimeDisplay = $('rec-time-display');
+
+            const styleSelect = $('style-select'), themeSelect = $('theme-select'), fftSelect = $('fft-select');
+            const smoothBar = $('smooth-bar'), bassBar = $('bass-bar'), glowBar = $('glow-bar');
+            const settingsTabGeneral = $('settings-tab-general'), settingsTabUi = $('settings-tab-ui');
+            const settingsPanelGeneral = $('settings-panel-general'), settingsPanelUi = $('settings-panel-ui');
+            const uiBlurToggle = $('ui-blur-toggle'), animationBlurToggle = $('animation-blur-toggle');
+            const transparencyCard = $('transparency-card'), uiTransparencyToggle = $('ui-transparency-toggle');
+            const eqBass = $('eq-bass'), eqMid = $('eq-mid'), eqTreb = $('eq-treb');
+            const eqPresets = document.querySelectorAll('.eq-preset-pill');
+
+            const statusMessage = $('status-message'), toastRegion = $('toast-region');
+            const canvas = $('visualizer'), ctx = canvas.getContext('2d');
+
+            const STORAGE_KEY = 'spectrolizer.preferences.v1';
+            const SUPPORTED_FILE_PREFIXES = ['audio/', 'video/'];
+            const DEFAULT_PREFERENCES = Object.freeze({
+                style: 'bars', theme: 'neon', fftSize: 2048, volume: 0.8, loop: false, expanded: false, shuffle: false,
+                smoothing: 0.85, bassBoost: 1.35, glowStrength: 16,
+                eqB: 0, eqM: 0, eqT: 0, eqPreset: 'flat', uiBlur: true, uiTransparency: true, animationBlur: true
+            });
+
+            let VISUALIZER_SETTINGS = {
+                smoothing: 0.85, bassBoost: 1.35, glowStrength: 16
+            };
+
+            const PLAY_ICON = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+            const PAUSE_ICON = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+            const SOUND_ICON = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+            const MUTE_ICON = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
+            const EXPAND_ICON = '<polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+            const COMPRESS_ICON = '<polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+
+            const THEME_GRADIENT_STOPS = Object.freeze({
+                neon: [[0, '#00dfd8'], [0.5, '#b000ff'], [1, '#ff007f']],
+                cyberpunk: [[0, '#fce029'], [0.5, '#00ffcc'], [1, '#ff003c']],
+                monochrome: [[0, '#ffffff'], [0.5, '#888888'], [1, '#333333']]
+            });
+            const SHADOW_COLORS_BY_STYLE = {
+                bars: { neon: '#b000ff', cyberpunk: '#00ffcc', monochrome: '#ffffff' },
+                mirrored: { neon: '#00dfd8', cyberpunk: '#fce029', monochrome: '#ffffff' },
+                radial: { neon: '#ff007f', cyberpunk: '#ff003c', monochrome: '#aaaaaa' },
+                wave: { neon: '#00dfd8', cyberpunk: '#00ffcc', monochrome: '#ffffff' }
+            };
+            const VALID_VISUALIZER_MODES = Object.freeze(['bars', 'mirrored', 'radial', 'wave']);
+            const EQ_PRESETS = Object.freeze({ flat:[0,0,0], electronic:[4,-2,3], acoustic:[-2,3,2], deepbass:[8,0,-2], vocal:[-3,4,-1] });
+            const QUEUE_DB_NAME = 'spectrolizer.queue.v1';
+            const QUEUE_DB_STORE = 'tracks';
+
+            const state = {
+                audioContext: null, analyser: null, source: null,
+                eqNodes: { low: null, mid: null, high: null },
+                micStream: null, micSource: null, systemAudioStream: null, systemAudioSource: null, liveInputType: null, isLive: false,
+                mediaRecorder: null, recordedChunks: [], recordingInterval: null, recStartTime: 0,
+                recVideoStream: null, recDestNode: null, recordingMimeType: 'video/webm',
+                frequencyData: null, waveformData: null,
+                playlist: [], currentIndex: -1, shuffle: false, draggedItem: null,
+                isAudioSetup: false, isSeeking: false, isRendering: false, renderFrameId: 0,
+                uiTimeout: 0, transitionTimeout: 0, uiActivityScheduled: false,
+                previousVolume: DEFAULT_PREFERENCES.volume, eqPreset: DEFAULT_PREFERENCES.eqPreset, currentStyle: DEFAULT_PREFERENCES.style, currentTheme: DEFAULT_PREFERENCES.theme,
+                gradientCache: new Map(),
+                playRequestId: 0
+            };
+
+            function clamp(value, min, max) { return Math.min(Math.max(Number(value), min), max); }
+            function formatTime(seconds) {
+                if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                return `${m}:${String(s).padStart(2, '0')}`;
+            }
+            function setStatus(msg) { statusMessage.textContent = msg; }
+            function showToast(msg, type = 'info') {
+                const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+                toastRegion.appendChild(t); setTimeout(() => { t.classList.add('is-leaving'); t.addEventListener('animationend', () => t.remove()); }, 2600);
+            }
+
+            function readPreferences() {
+                try { return { ...DEFAULT_PREFERENCES, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; }
+                catch { return { ...DEFAULT_PREFERENCES }; }
+            }
+            function savePreferences() {
+                const pref = {
+                    style: VALID_VISUALIZER_MODES.includes(state.currentStyle) ? state.currentStyle : DEFAULT_PREFERENCES.style,
+                    theme: THEME_GRADIENT_STOPS[state.currentTheme] ? state.currentTheme : DEFAULT_PREFERENCES.theme,
+                    fftSize: Number(fftSelect.value),
+                    volume: audioEngine.volume, loop: audioEngine.loop, expanded: document.body.classList.contains('expanded'), shuffle: state.shuffle,
+                    smoothing: VISUALIZER_SETTINGS.smoothing, bassBoost: VISUALIZER_SETTINGS.bassBoost, glowStrength: VISUALIZER_SETTINGS.glowStrength,
+                    eqB: Number(eqBass.value), eqM: Number(eqMid.value), eqT: Number(eqTreb.value), eqPreset: state.eqPreset || null,
+                    uiBlur: uiBlurToggle.checked, uiTransparency: uiTransparencyToggle.checked, animationBlur: animationBlurToggle.checked
+                };
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pref)); } catch {}
+            }
+
+            function updateEqDisplay() {
+                const bassVal = document.getElementById('eq-bass-val');
+                const midVal = document.getElementById('eq-mid-val');
+                const trebVal = document.getElementById('eq-treb-val');
+                if (bassVal) bassVal.textContent = (eqBass.value > 0 ? '+' : '') + eqBass.value + ' dB';
+                if (midVal) midVal.textContent = (eqMid.value > 0 ? '+' : '') + eqMid.value + ' dB';
+                if (trebVal) trebVal.textContent = (eqTreb.value > 0 ? '+' : '') + eqTreb.value + ' dB';
+            }
+
+            function updateTransparencyVisibility() {
+                const isBlurOff = !uiBlurToggle.checked;
+                transparencyCard.style.display = isBlurOff ? '' : 'none';
+                document.body.classList.toggle('ui-transparency-on', isBlurOff && uiTransparencyToggle.checked);
+            }
+
+            function applyPreferences() {
+                const p = readPreferences();
+                state.currentStyle = VALID_VISUALIZER_MODES.includes(p.style) ? p.style : DEFAULT_PREFERENCES.style;
+                state.currentTheme = THEME_GRADIENT_STOPS[p.theme] ? p.theme : DEFAULT_PREFERENCES.theme;
+
+                styleSelect.value = state.currentStyle; themeSelect.value = state.currentTheme;
+                fftSelect.value = [512,1024,2048,4096,8192].includes(Number(p.fftSize)) ? String(p.fftSize) : "2048";
+
+                VISUALIZER_SETTINGS.smoothing = clamp(p.smoothing, 0, 0.99);
+                VISUALIZER_SETTINGS.bassBoost = clamp(p.bassBoost, 1, 3);
+                VISUALIZER_SETTINGS.glowStrength = clamp(p.glowStrength, 0, 50);
+                smoothBar.value = VISUALIZER_SETTINGS.smoothing; bassBar.value = VISUALIZER_SETTINGS.bassBoost; glowBar.value = VISUALIZER_SETTINGS.glowStrength;
+
+                eqBass.value = clamp(p.eqB, -15, 15); eqMid.value = clamp(p.eqM, -15, 15); eqTreb.value = clamp(p.eqT, -15, 15);
+                state.eqPreset = Object.prototype.hasOwnProperty.call(EQ_PRESETS, p.eqPreset) ? p.eqPreset : getMatchingEqPreset();
+                updateEqPresetUI();
+                uiBlurToggle.checked = p.uiBlur !== false; 
+                uiTransparencyToggle.checked = p.uiTransparency !== false;
+                animationBlurToggle.checked = p.animationBlur !== false;
+                document.body.classList.toggle('ui-blur-off', !uiBlurToggle.checked);
+                document.body.classList.toggle('animation-blur-off', !animationBlurToggle.checked);
+                updateTransparencyVisibility();
+
+                audioEngine.loop = Boolean(p.loop); btnLoop.classList.toggle('active', audioEngine.loop);
+                state.shuffle = Boolean(p.shuffle); btnShuffle.classList.toggle('active', state.shuffle);
+                setVolume(clamp(p.volume, 0, 1), false);
+                setExpanded(Boolean(p.expanded), false);
+                updateAllSliderProgress();
+                updateEqDisplay();
+                
+                // Sync visualizer mode cards without firing the select change handler
+                syncVisualizerModeUI(state.currentStyle);
+            }
+
+            function updateSliderProgress(slider) {
+                if (!slider) return;
+                const min = parseFloat(slider.min) || 0;
+                const max = parseFloat(slider.max) || 100;
+                const val = parseFloat(slider.value) || 0;
+                const percentage = (Number.isFinite(max) && max > min) ? ((val - min) / (max - min)) * 100 : 0;
+                slider.style.setProperty('--progress', `${percentage}%`);
+            }
+            function updateAllSliderProgress() {
+                [seekBar, volumeBar, smoothBar, bassBar, glowBar, eqBass, eqMid, eqTreb].forEach(updateSliderProgress);
+            }
+
+            function resizeCanvas() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = Math.round(window.innerWidth * dpr); canvas.height = Math.round(window.innerHeight * dpr);
+                canvas.style.width = `${window.innerWidth}px`; canvas.style.height = `${window.innerHeight}px`;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0); state.gradientCache.clear();
+            }
+
+            function allocateAudioBuffers() {
+                if (!state.analyser) return;
+                const len = state.analyser.frequencyBinCount;
+                state.frequencyData = new Uint8Array(len); state.waveformData = new Uint8Array(len);
+            }
+
+            function setupAudioContext() {
+                if (state.isAudioSetup) return true;
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return false;
+                try {
+                    state.audioContext = new AudioCtx();
+                    state.analyser = state.audioContext.createAnalyser();
+                    state.analyser.fftSize = Number(fftSelect.value);
+
+                    state.eqNodes.low = state.audioContext.createBiquadFilter(); state.eqNodes.low.type = 'lowshelf'; state.eqNodes.low.frequency.value = 250;
+                    state.eqNodes.mid = state.audioContext.createBiquadFilter(); state.eqNodes.mid.type = 'peaking'; state.eqNodes.mid.frequency.value = 1000; state.eqNodes.mid.Q.value = 1;
+                    state.eqNodes.high = state.audioContext.createBiquadFilter(); state.eqNodes.high.type = 'highshelf'; state.eqNodes.high.frequency.value = 4000;
+                    applyEqValues();
+
+                    state.source = state.audioContext.createMediaElementSource(audioEngine);
+                    state.source.connect(state.eqNodes.low);
+                    state.eqNodes.low.connect(state.eqNodes.mid);
+                    state.eqNodes.mid.connect(state.eqNodes.high);
+                    state.eqNodes.high.connect(state.analyser);
+                    state.analyser.connect(state.audioContext.destination);
+
+                    allocateAudioBuffers(); state.isAudioSetup = true; startRendering(); return true;
+                } catch (e) { return false; }
+            }
+
+            async function ensureAudioContextActive() {
+                if (!setupAudioContext()) return false;
+                if (state.audioContext.state === 'suspended') await state.audioContext.resume();
+                return true;
+            }
+
+            function applyEqValues() {
+                if (state.eqNodes.low) {
+                    state.eqNodes.low.gain.value = Number(eqBass.value);
+                    state.eqNodes.mid.gain.value = Number(eqMid.value);
+                    state.eqNodes.high.gain.value = Number(eqTreb.value);
+                }
+                [eqBass, eqMid, eqTreb].forEach(updateSliderProgress);
+                updateEqDisplay();
+                updateEqPresetUI();
+                savePreferences();
+            }
+
+            function openQueueDB() {
+                return new Promise((resolve, reject) => {
+                    if (!('indexedDB' in window)) return reject(new Error('IndexedDB unavailable'));
+                    const req = indexedDB.open(QUEUE_DB_NAME, 1);
+                    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(QUEUE_DB_STORE)) req.result.createObjectStore(QUEUE_DB_STORE, { keyPath: 'id' }); };
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+            async function persistQueue() {
+                try {
+                    const db = await openQueueDB();
+                    const tx = db.transaction(QUEUE_DB_STORE, 'readwrite');
+                    const store = tx.objectStore(QUEUE_DB_STORE);
+                    store.clear();
+                    state.playlist.forEach(item => store.put({ id: item.id, name: item.name, file: item.file }));
+                    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+                    db.close();
+                } catch (e) { console.warn('Queue persistence unavailable:', e); }
+            }
+            async function restoreQueue() {
+                try {
+                    const db = await openQueueDB();
+                    const tx = db.transaction(QUEUE_DB_STORE, 'readonly');
+                    const req = tx.objectStore(QUEUE_DB_STORE).getAll();
+                    const rows = await new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result || []); req.onerror = () => reject(req.error); });
+                    db.close();
+                    state.playlist = rows.filter(r => r.file instanceof Blob).map(r => ({ id: r.id, file: r.file, url: URL.createObjectURL(r.file), name: r.name || r.file.name || 'Untitled' }));
+                    renderQueue();
+                } catch (e) { console.warn('Queue restore unavailable:', e); }
+            }
+
+            function renderQueue() {
+                queueList.innerHTML = '';
+                if (state.playlist.length === 0) {
+                    queueList.innerHTML = `
+                    <div class="queue-empty-state">
+                        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                        <p>Queue is empty</p>
+                        <span>Drop files here or click Load Media</span>
+                    </div>`;
+                    return;
+                }
+                state.playlist.forEach((item, index) => {
+                    const div = document.createElement('div'); div.className = `queue-item ${index === state.currentIndex && !state.isLive ? 'active' : ''}`;
+                    div.draggable = true;
+                    div.innerHTML = `<div class="qi-info"><span class="qi-name" title="${item.name}">${item.name}</span></div>
+                    <div class="qi-actions">
+                    <button class="qi-btn play-btn" title="Play"><svg viewBox="0 0 24 24" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon></svg></button>
+                    <button class="qi-btn rm-btn" title="Remove"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    </div>`;
+
+                    div.querySelector('.play-btn').onclick = (e) => { e.stopPropagation(); playTrack(index); };
+                    div.querySelector('.rm-btn').onclick = (e) => { e.stopPropagation(); removeTrack(index); };
+
+                    div.ondragstart = () => { state.draggedItem = index; div.style.opacity = '0.5'; };
+                    div.ondragover = (e) => e.preventDefault();
+                    div.ondrop = (e) => {
+                        e.preventDefault(); const dragged = state.playlist.splice(state.draggedItem, 1)[0];
+                        state.playlist.splice(index, 0, dragged);
+                        if (state.currentIndex === state.draggedItem) state.currentIndex = index;
+                        else if (state.currentIndex > state.draggedItem && state.currentIndex <= index) state.currentIndex--;
+                        else if (state.currentIndex < state.draggedItem && state.currentIndex >= index) state.currentIndex++;
+                        renderQueue();
+                        persistQueue();
+                    };
+                    div.ondragend = () => { div.style.opacity = '1'; state.draggedItem = null; };
+
+                    queueList.appendChild(div);
+                });
+            }
+
+            async function addFilesToQueue(files) {
+                let added = 0;
+                let rejected = 0;
+                for (const file of files) {
+                    const isSupportedExtension = /\.(mp3|wav|ogg|m4a|m4b|aac|flac|mp4|webm|weba|mov|opus|mka|wma)$/i.test(file.name);
+                    const isSupportedMime = SUPPORTED_FILE_PREFIXES.some(p => file.type && file.type.startsWith(p));
+                    if (file instanceof File && (isSupportedMime || isSupportedExtension)) {
+                        state.playlist.push({ id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), file, url: URL.createObjectURL(file), name: file.name.replace(/\.[^/.]+$/, '') });
+                        added++;
+                    } else { rejected++; }
+                }
+                if (added > 0) {
+                    renderQueue();
+                    persistQueue();
+                    showToast(`Added ${added} track(s) to Queue`);
+                    if (state.currentIndex === -1) playTrack(0);
+                } else if (rejected > 0) {
+                    showToast(`File format not supported.`, 'error');
+                }
+            }
+
+            function removeTrack(index) {
+                URL.revokeObjectURL(state.playlist[index].url);
+                state.playlist.splice(index, 1);
+                if (state.currentIndex === index) { state.currentIndex = -1; audioEngine.pause(); audioEngine.src = ""; trackTitle.textContent = "No File Loaded"; }
+                else if (state.currentIndex > index) state.currentIndex--;
+                renderQueue();
+                persistQueue();
+            }
+
+            async function playTrack(index) {
+                if (index < 0 || index >= state.playlist.length) return;
+                const requestId = ++state.playRequestId;
+                if (state.isLive) await stopLiveInput();
+                state.currentIndex = index;
+                renderQueue();
+                const item = state.playlist[index];
+                albumArtBtn.classList.add('is-loading');
+                uploadLabel.textContent = 'Loading...';
+                if (!(await ensureAudioContextActive()) || requestId !== state.playRequestId) {
+                    albumArtBtn.classList.remove('is-loading');
+                    uploadLabel.textContent = 'Load Local Media';
+                    return;
+                }
+                audioEngine.preload = 'auto';
+                audioEngine.src = item.url;
+                audioEngine.load();
+                trackTitle.textContent = item.name;
+                document.title = `${item.name} — Spectrolizer`;
+                try {
+                    await audioEngine.play();
+                    if (requestId !== state.playRequestId) audioEngine.pause();
+                } catch (e) {
+                    console.error("Playback failed:", e);
+                    if (typeof showToast === 'function') showToast("Unable to play track or file format issue", "error");
+                } finally {
+                    albumArtBtn.classList.remove('is-loading');
+                    uploadLabel.textContent = 'Load Local Media';
+                }
+            }
+
+            function nextTrack() {
+                if (state.playlist.length === 0) return;
+                let nextIdx = state.shuffle ? Math.floor(Math.random() * state.playlist.length) : state.currentIndex + 1;
+                if (nextIdx >= state.playlist.length) nextIdx = 0;
+                playTrack(nextIdx);
+            }
+            function prevTrack() {
+                if (state.playlist.length === 0) return;
+                let prevIdx = state.currentIndex - 1;
+                if (prevIdx < 0) prevIdx = state.playlist.length - 1;
+                playTrack(prevIdx);
+            }
+
+            async function toggleLiveMic() {
+                if (state.isLive && state.liveInputType === 'mic') await stopLiveInput();
+                else {
+                    if (state.isLive) await stopLiveInput();
+                    await startLiveMic();
+                }
+            }
+
+            async function toggleSystemAudio() {
+                if (state.isLive && state.liveInputType === 'system') await stopLiveInput();
+                else {
+                    if (state.isLive) await stopLiveInput();
+                    await startSystemAudio();
+                }
+            }
+
+            async function startLiveMic() {
+                if (!(await ensureAudioContextActive())) return;
+                if (!navigator.mediaDevices?.getUserMedia) return showToast("Microphone input is not supported in this browser", "error");
+                try {
+                    state.micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false }});
+                    state.micSource = state.audioContext.createMediaStreamSource(state.micStream);
+                    audioEngine.pause();
+                    btnMic.classList.add('active');
+                    btnSystemAudio.classList.remove('active');
+                    document.body.classList.add('live-mode');
+                    trackTitle.textContent = "Live Studio Input";
+                    state.analyser.disconnect();
+                    state.micSource.connect(state.eqNodes.low);
+                    state.liveInputType = 'mic';
+                    state.isLive = true;
+                    showToast("Live Mic connected (Muted output to prevent feedback)", "info");
+                } catch(e) { showToast("Microphone access denied or unavailable", "error"); }
+            }
+
+            async function startSystemAudio() {
+                if (!(await ensureAudioContextActive())) return;
+                if (!navigator.mediaDevices?.getDisplayMedia) return showToast("System audio input is not supported in this browser", "error");
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: true,
+                        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                    });
+                    const audioTracks = stream.getAudioTracks();
+                    if (!audioTracks.length) {
+                        stream.getTracks().forEach(t => t.stop());
+                        showToast("No system audio was shared. Enable Share audio in the picker.", "error");
+                        return;
+                    }
+                    stream.getVideoTracks().forEach(t => t.stop());
+                    state.systemAudioStream = new MediaStream(audioTracks);
+                    state.systemAudioSource = state.audioContext.createMediaStreamSource(state.systemAudioStream);
+                    audioEngine.pause();
+                    btnSystemAudio.classList.add('active');
+                    btnMic.classList.remove('active');
+                    document.body.classList.add('live-mode');
+                    trackTitle.textContent = "System Audio Input";
+                    state.analyser.disconnect();
+                    state.systemAudioSource.connect(state.eqNodes.low);
+                    state.liveInputType = 'system';
+                    state.isLive = true;
+                    audioTracks[0].addEventListener('ended', () => {
+                        if (state.liveInputType === 'system') stopLiveInput();
+                    }, { once: true });
+                    showToast("System audio connected", "info");
+                } catch(e) {
+                    if (stream) stream.getTracks().forEach(t => t.stop());
+                    if (e?.name !== 'AbortError' && e?.name !== 'NotAllowedError') showToast("Unable to capture system audio", "error");
+                }
+            }
+
+            async function stopLiveInput() {
+                if (!state.isLive) return;
+                if (state.micStream) state.micStream.getTracks().forEach(t => t.stop());
+                if (state.systemAudioStream) state.systemAudioStream.getTracks().forEach(t => t.stop());
+                if (state.micSource) state.micSource.disconnect();
+                if (state.systemAudioSource) state.systemAudioSource.disconnect();
+                state.micStream = null; state.systemAudioStream = null; state.micSource = null; state.systemAudioSource = null;
+                state.analyser.connect(state.audioContext.destination);
+                btnMic.classList.remove('active');
+                btnSystemAudio.classList.remove('active');
+                document.body.classList.remove('live-mode');
+                state.liveInputType = null;
+                state.isLive = false;
+                showToast("Live input disconnected");
+                if (state.currentIndex >= 0) playTrack(state.currentIndex);
+                else trackTitle.textContent = "No File Loaded";
+            }
+
+            function toggleRecording() {
+                if (state.mediaRecorder && state.mediaRecorder.state === 'recording') stopRecording();
+                else startRecording();
+            }
+
+            function cleanupRecordingCapture() {
+                if (state.recDestNode && state.analyser) {
+                    try { state.analyser.disconnect(state.recDestNode); } catch {}
+                }
+                state.recDestNode = null;
+                if (state.recVideoStream) state.recVideoStream.getTracks().forEach(t => t.stop());
+                state.recVideoStream = null;
+            }
+
+            function startRecording() {
+                if (!state.isAudioSetup) return showToast("Play audio or enable mic first to record.");
+                if (typeof MediaRecorder === 'undefined') return showToast("Recording is not supported in this browser.", "error");
+
+                try {
+                    const vStream = canvas.captureStream(60);
+                    const dest = state.audioContext.createMediaStreamDestination();
+                    state.analyser.connect(dest);
+                    state.recVideoStream = vStream;
+                    state.recDestNode = dest;
+
+                    const combined = new MediaStream([...vStream.getTracks(), ...dest.stream.getAudioTracks()]);
+                    const mimeCandidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+                    const supportedType = mimeCandidates.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+                    state.recordingMimeType = supportedType || 'video/webm';
+                    state.mediaRecorder = new MediaRecorder(combined, supportedType ? { mimeType: supportedType } : undefined);
+                    state.recordedChunks = [];
+                    state.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.recordedChunks.push(e.data); };
+                    state.mediaRecorder.onstop = exportRecording;
+                    state.mediaRecorder.start();
+                    document.body.classList.add('is-recording'); btnRecord.classList.add('active');
+                    state.recStartTime = Date.now();
+                    state.recordingInterval = setInterval(() => {
+                        const sec = Math.floor((Date.now() - state.recStartTime)/1000);
+                        recTimeDisplay.textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+                    }, 1000);
+                    showToast("Recording Started", "success");
+                } catch (e) {
+                    console.error('Recording start failed:', e);
+                    cleanupRecordingCapture();
+                    state.mediaRecorder = null;
+                    showToast("Unable to start recording on this browser.", "error");
+                }
+            }
+
+            function stopRecording() {
+                if (!state.mediaRecorder) return;
+                try { if (state.mediaRecorder.state !== 'inactive') state.mediaRecorder.stop(); } catch {}
+                clearInterval(state.recordingInterval); state.recordingInterval = null;
+                cleanupRecordingCapture();
+                document.body.classList.remove('is-recording'); btnRecord.classList.remove('active');
+            }
+
+            function exportRecording() {
+                const mime = state.recordingMimeType || 'video/webm';
+                const blob = new Blob(state.recordedChunks, { type: mime });
+                state.recordedChunks = [];
+                const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.style.display = 'none';
+                a.href = url; a.download = `Spectrolizer_Export_${Date.now()}.${ext}`;
+                document.body.appendChild(a); a.click();
+                setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+                state.mediaRecorder = null;
+                showToast("Recording Exported Successfully!", "success");
+            }
+
+            async function togglePlay() {
+                if (state.isLive) return showToast("Disable live input to use playback");
+                if (state.playlist.length === 0) return fileInput.click();
+                if (!(await ensureAudioContextActive())) return;
+                if (audioEngine.paused) {
+                    try { await audioEngine.play(); }
+                    catch (e) { console.error('Playback failed:', e); showToast('Unable to play track or file format issue', 'error'); }
+                } else audioEngine.pause();
+            }
+
+            function setVolume(val, persist = true) {
+                const v = clamp(val, 0, 1); audioEngine.volume = v; volumeBar.value = v; updateSliderProgress(volumeBar);
+                svgMuteIcon.innerHTML = v === 0 ? MUTE_ICON : SOUND_ICON; btnMute.setAttribute('aria-label', v === 0 ? 'Unmute' : 'Mute');
+                if (v > 0) state.previousVolume = v; if (persist) savePreferences();
+            }
+
+            function setExpanded(isExp, anim = true) {
+                clearTimeout(state.transitionTimeout);
+                if (anim && animationBlurToggle.checked && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    document.body.classList.remove('is-transitioning'); void document.body.offsetWidth; document.body.classList.add('is-transitioning');
+                }
+                document.body.classList.toggle('expanded', isExp);
+                viewBtnText.textContent = isExp ? 'Compact' : 'Expand'; svgViewIcon.innerHTML = isExp ? COMPRESS_ICON : EXPAND_ICON;
+                btnToggleView.setAttribute('aria-pressed', String(isExp));
+                if (anim) state.transitionTimeout = setTimeout(() => document.body.classList.remove('is-transitioning'), 500);
+                resetUITimeout(); savePreferences();
+            }
+
+            function resetUITimeout() {
+                appPanel.style.opacity = '1'; clearTimeout(state.uiTimeout);
+                if (document.body.classList.contains('expanded') && !audioEngine.paused && !document.body.classList.contains('is-recording')) {
+                    state.uiTimeout = setTimeout(() => appPanel.style.opacity = '0.25', 3500);
+                }
+            }
+            function scheduleUIActivity() {
+                if (state.uiActivityScheduled) return;
+                state.uiActivityScheduled = true; requestAnimationFrame(() => { state.uiActivityScheduled = false; resetUITimeout(); });
+            }
+
+            function getCachedGradient(sKey, x1, y1, x2, y2) {
+                const k = `${sKey}:${state.currentTheme}:${window.innerWidth}x${window.innerHeight}`;
+                if (!state.gradientCache.has(k)) {
+                    const g = ctx.createLinearGradient(x1, y1, x2, y2);
+                    (THEME_GRADIENT_STOPS[state.currentTheme] || THEME_GRADIENT_STOPS.neon).forEach(([off, col]) => g.addColorStop(off, col));
+                    state.gradientCache.set(k, g);
+                } return state.gradientCache.get(k);
+            }
+
+            function startRendering() {
+                if (state.isRendering || document.hidden) return;
+                state.isRendering = true; state.renderFrameId = requestAnimationFrame(renderVis);
+            }
+
+            function stopRendering() {
+                if (!state.isRendering) return;
+                cancelAnimationFrame(state.renderFrameId); state.isRendering = false;
+            }
+
+            function renderVis() {
+                if (!state.isRendering) return;
+                const w = window.innerWidth, h = window.innerHeight;
+                ctx.fillStyle = document.body.classList.contains('expanded') ? 'rgba(0, 0, 0, 0.25)' : 'rgba(8, 6, 16, 0.3)';
+                ctx.fillRect(0, 0, w, h);
+
+                if (state.analyser && state.frequencyData) {
+                    state.analyser.smoothingTimeConstant = VISUALIZER_SETTINGS.smoothing;
+                    const len = state.analyser.frequencyBinCount, cX = w/2, cY = h/2;
+
+                    if (state.currentStyle === 'wave') state.analyser.getByteTimeDomainData(state.waveformData);
+                    else state.analyser.getByteFrequencyData(state.frequencyData);
+
+                    ctx.shadowBlur = state.currentTheme === 'monochrome' ? 10 : VISUALIZER_SETTINGS.glowStrength;
+                    const palette = SHADOW_COLORS_BY_STYLE[state.currentStyle] || SHADOW_COLORS_BY_STYLE.bars;
+                    ctx.shadowColor = palette[state.currentTheme] || '#fff';
+
+                    if (state.currentStyle === 'mirrored') {
+                        const bW = (w/len)*2.5; let x=0; ctx.fillStyle = getCachedGradient('mirrored', 0, h, 0, 0);
+                        for(let i=0; i<len&&x<w; i++){ const bH = (state.frequencyData[i]/255)*cY*0.75; ctx.fillRect(x, cY-bH, bW, bH); ctx.fillRect(x, cY, bW, bH); x+=bW+1; }
+                    } else if (state.currentStyle === 'radial') {
+                        const rad=Math.min(cX,cY)*0.35, bc=Math.max(1,Math.floor(len*0.5)), step=(Math.PI*2)/bc;
+                        ctx.strokeStyle = getCachedGradient('radial', 0, 0, cX*2, cY*2); ctx.lineWidth=3; ctx.beginPath();
+                        for(let i=0; i<bc; i++){
+                            const val = (state.frequencyData[i]/255)*rad*1.5, ang=i*step;
+                            ctx.moveTo(cX+Math.cos(ang)*rad, cY+Math.sin(ang)*rad); ctx.lineTo(cX+Math.cos(ang)*(rad+val), cY+Math.sin(ang)*(rad+val));
+                        } ctx.stroke();
+                    } else if (state.currentStyle === 'wave') {
+                        const sw=w/len; let x=0; ctx.lineWidth=3; ctx.strokeStyle = getCachedGradient('wave', 0, 0, w, 0); ctx.beginPath();
+                        for(let i=0; i<len; i++){ const y = cY + ((state.waveformData[i] - 128) / 128) * cY; if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); x+=sw; } ctx.stroke();
+                    } else {
+                        const bW = (w/len)*2.5; let x=0; ctx.fillStyle = getCachedGradient('bars', 0, h, 0, 0);
+                        for(let i=0; i<len&&x<w; i++){
+                            let val = state.frequencyData[i]/255; if(i<len*0.15) val *= VISUALIZER_SETTINGS.bassBoost;
+                            const bH = Math.pow(val, 1.2)*h*0.65; ctx.fillRect(x, h-bH, bW, bH); x+=bW+1;
+                        }
+                    }
+                    ctx.shadowBlur = 0;
+                }
+                state.renderFrameId = requestAnimationFrame(renderVis);
+            }
+
+            // --- Visualizer Mode UI Helper ---
+            function syncVisualizerModeUI(mode) {
+                document.querySelectorAll('.mode-card').forEach(card => {
+                    card.classList.toggle('active', card.dataset.value === mode);
+                });
+            }
+
+            window.setVisualizerMode = function(mode) {
+                const safeMode = VALID_VISUALIZER_MODES.includes(mode) ? mode : DEFAULT_PREFERENCES.style;
+                state.currentStyle = safeMode;
+                styleSelect.value = safeMode;
+                syncVisualizerModeUI(safeMode);
+                state.gradientCache.clear();
+                savePreferences();
+            };
+
+            // Drawers & Modals Toggle Controls
+            btnSettings.onclick = () => settingsDrawer.classList.toggle('open');
+            btnCloseSettings.onclick = () => settingsDrawer.classList.remove('open');
+
+            function setSettingsTab(tab) {
+                const showUi = tab === 'ui';
+                settingsTabGeneral.classList.toggle('active', !showUi);
+                settingsTabUi.classList.toggle('active', showUi);
+                settingsTabGeneral.setAttribute('aria-selected', String(!showUi));
+                settingsTabUi.setAttribute('aria-selected', String(showUi));
+                settingsPanelGeneral.classList.toggle('active', !showUi);
+                settingsPanelUi.classList.toggle('active', showUi);
+            }
+
+            settingsTabGeneral.onclick = () => setSettingsTab('general');
+            settingsTabUi.onclick = () => setSettingsTab('ui');
+
+            btnQueue.onclick = () => queueDrawer.classList.toggle('open');
+            btnCloseQueue.onclick = () => queueDrawer.classList.remove('open');
+
+            btnEq.onclick = () => eqModal.classList.toggle('open');
+            btnCloseEq.onclick = () => eqModal.classList.remove('open');
+
+            // EQ & Setting Binds
+            function getMatchingEqPreset() {
+                for (const [name, vals] of Object.entries(EQ_PRESETS)) {
+                    if (Number(eqBass.value) === vals[0] && Number(eqMid.value) === vals[1] && Number(eqTreb.value) === vals[2]) return name;
+                }
+                return null;
+            }
+            function updateEqPresetUI() {
+                eqPresets.forEach(el => el.classList.toggle('active', el.dataset.preset === state.eqPreset));
+            }
+            [eqBass, eqMid, eqTreb].forEach(s => s.addEventListener('input', () => {
+                state.eqPreset = getMatchingEqPreset();
+                updateEqPresetUI();
+                applyEqValues();
+            }));
+            eqPresets.forEach(p => p.onclick = () => {
+                state.eqPreset = p.dataset.preset;
+                const vals = EQ_PRESETS[state.eqPreset];
+                eqBass.value=vals[0]; eqMid.value=vals[1]; eqTreb.value=vals[2];
+                updateEqPresetUI();
+                applyEqValues();
+            });
+            styleSelect.onchange = (e) => { window.setVisualizerMode(e.target.value); };
+            themeSelect.onchange = (e) => { state.currentTheme = e.target.value; state.gradientCache.clear(); savePreferences(); };
+            fftSelect.onchange = (e) => { if (state.analyser) { state.analyser.fftSize = Number(e.target.value); allocateAudioBuffers(); } savePreferences(); };
+
+            smoothBar.oninput = (e) => { VISUALIZER_SETTINGS.smoothing = Number(e.target.value); updateSliderProgress(smoothBar); savePreferences(); };
+            bassBar.oninput = (e) => { VISUALIZER_SETTINGS.bassBoost = Number(e.target.value); updateSliderProgress(bassBar); savePreferences(); };
+            glowBar.oninput = (e) => { VISUALIZER_SETTINGS.glowStrength = Number(e.target.value); updateSliderProgress(glowBar); savePreferences(); };
+            
+            uiBlurToggle.onchange = () => { 
+                document.body.classList.toggle('ui-blur-off', !uiBlurToggle.checked); 
+                updateTransparencyVisibility();
+                savePreferences(); 
+            };
+            
+            uiTransparencyToggle.onchange = () => { 
+                updateTransparencyVisibility();
+                savePreferences(); 
+            };
+            
+            animationBlurToggle.onchange = () => { document.body.classList.toggle('animation-blur-off', !animationBlurToggle.checked); savePreferences(); };
+
+            // Media Actions
+            albumArtBtn.onclick = () => fileInput.click();
+            fileInput.onchange = (e) => addFilesToQueue(e.target.files);
+            btnPlay.onclick = togglePlay;
+            btnNext.onclick = nextTrack;
+            btnPrev.onclick = prevTrack;
+            btnMute.onclick = () => setVolume(audioEngine.volume > 0 ? 0 : (state.previousVolume || 0.8));
+            volumeBar.oninput = (e) => setVolume(e.target.value);
+
+            btnLoop.onclick = () => { audioEngine.loop = !audioEngine.loop; btnLoop.classList.toggle('active', audioEngine.loop); savePreferences(); };
+            btnShuffle.onclick = () => { state.shuffle = !state.shuffle; btnShuffle.classList.toggle('active', state.shuffle); savePreferences(); };
+            
+            // iOS-style Icon Expand/Collapse Animation
+            btnToggleView.onclick = () => {
+                btnToggleView.classList.remove('icon-spring-anim');
+                void btnToggleView.offsetWidth; // trigger reflow
+                btnToggleView.classList.add('icon-spring-anim');
+                setExpanded(!document.body.classList.contains('expanded'));
+            };
+            
+            btnFullscreen.onclick = async () => {
+                try {
+                    if (!document.fullscreenElement) {
+                        const request = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+                        if (request) await request.call(document.documentElement);
+                    } else {
+                        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                        if (exit) await exit.call(document);
+                    }
+                } catch (e) { showToast('Fullscreen is unavailable in this browser.', 'error'); }
+            };
+
+            btnSystemAudio.onclick = toggleSystemAudio;
+            btnMic.onclick = toggleLiveMic;
+            btnRecord.onclick = toggleRecording;
+            btnStopRec.onclick = stopRecording;
+
+            // Audio Engine Triggers
+            audioEngine.onloadedmetadata = () => { seekBar.max = String(audioEngine.duration||100); timeTotal.textContent = formatTime(audioEngine.duration); updateSliderProgress(seekBar); };
+            audioEngine.ontimeupdate = () => { if(!state.isSeeking){ seekBar.value=audioEngine.currentTime; timeCurrent.textContent=formatTime(audioEngine.currentTime); updateSliderProgress(seekBar); }};
+            audioEngine.onended = () => { if(!audioEngine.loop) nextTrack(); };
+            audioEngine.onplay = () => { svgPlayIcon.innerHTML=PAUSE_ICON; albumArtBtn.classList.add('playing'); setStatus(`Playing ${trackTitle.textContent}`); resetUITimeout(); };
+            audioEngine.onpause = () => { svgPlayIcon.innerHTML=PLAY_ICON; albumArtBtn.classList.remove('playing'); if(!audioEngine.ended) setStatus(`Paused — ${trackTitle.textContent}`); };
+            audioEngine.onerror = () => {
+                const err = audioEngine.error;
+                if (!err) return;
+                const messages = {
+                    1: 'Media loading was aborted.',
+                    2: 'A network error interrupted media loading.',
+                    3: 'The browser could not decode this media file.',
+                    4: 'This media format is not supported by the browser.'
+                };
+                console.error("Audio playback error:", err.code, err.message || '');
+                showToast(`Error loading file: ${messages[err.code] || 'Unknown media error.'}`, 'error');
+            };
+
+            seekBar.oninput = (e) => { state.isSeeking = true; timeCurrent.textContent = formatTime(e.target.value); updateSliderProgress(seekBar); };
+            seekBar.onchange = (e) => { audioEngine.currentTime = e.target.value; state.isSeeking = false; };
+
+            // Drag and Drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => albumArtBtn.addEventListener(ev, e => { e.preventDefault(); albumArtBtn.classList.toggle('is-dragging', ev!=='dragleave'&&ev!=='drop'); }));
+            albumArtBtn.ondrop = (e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) addFilesToQueue(e.dataTransfer.files); };
+
+            // Window Events
+            document.onfullscreenchange = () => { btnFullscreen.classList.toggle('active', !!document.fullscreenElement); };
+            document.onvisibilitychange = () => document.hidden ? stopRendering() : (state.isAudioSetup && startRendering());
+            window.onresize = resizeCanvas;
+            ['mousemove', 'click', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, scheduleUIActivity, { passive: true }));
+
+            window.onkeydown = (e) => {
+                if (e.target?.tagName?.match(/INPUT|SELECT|TEXTAREA/) || e.target?.isContentEditable) return;
+                switch(e.key.toLowerCase()) {
+                    case ' ': e.preventDefault(); togglePlay(); break;
+                    case 'arrowleft': e.preventDefault(); audioEngine.currentTime-=5; break;
+                    case 'arrowright': e.preventDefault(); audioEngine.currentTime+=5; break;
+                    case 'arrowup': e.preventDefault(); setVolume(audioEngine.volume+0.05); break;
+                    case 'arrowdown': e.preventDefault(); setVolume(audioEngine.volume-0.05); break;
+                    case 'm': e.preventDefault(); btnMute.click(); break;
+                    case 'f': e.preventDefault(); btnFullscreen.click(); break;
+                    case 'e': e.preventDefault(); btnToggleView.click(); break;
+                    case 'q': e.preventDefault(); btnQueue.click(); break;
+                }
+            };
+
+            // INIT
+            resizeCanvas(); applyPreferences();
+            updateAllSliderProgress();
+            restoreQueue();
+            setStatus('Ready — open an audio or video file');
+        });
+    </script>
+</body>
+</html>
